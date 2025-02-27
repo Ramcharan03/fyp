@@ -1,0 +1,64 @@
+import os
+import json
+import solcx
+from web3 import Web3
+
+# Ensure solc version is installed
+solcx.install_solc("0.8.28")
+solcx.set_solc_version("0.8.28")
+
+# Connect to Ganache
+GANACHE_URL = "http://127.0.0.1:7545"
+web3 = Web3(Web3.HTTPProvider(GANACHE_URL))
+assert web3.is_connected(), "Failed to connect to Ganache"
+
+# Load contract
+CONTRACT_PATH = "contracts/vulnerable_contract.sol"
+with open(CONTRACT_PATH, "r") as file:
+    contract_source_code = file.read()
+
+# Compile contract
+compiled_sol = solcx.compile_standard({
+    "language": "Solidity",
+    "sources": {"vulnerable_contract.sol": {"content": contract_source_code}},
+    "settings": {"outputSelection": {"*": {"*": ["abi", "evm.bytecode", "evm.deployedBytecode"]}}}
+})
+
+contract_interface = compiled_sol["contracts"]["vulnerable_contract.sol"]
+abi = contract_interface[next(iter(contract_interface))]["abi"]
+bytecode = contract_interface[next(iter(contract_interface))]["evm"]["bytecode"]["object"]
+
+# Deploy contract
+account = web3.eth.accounts[0]
+contract = web3.eth.contract(abi=abi, bytecode=bytecode)
+tx_hash = contract.constructor().transact({"from": account})
+tx_receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
+deployed_contract = web3.eth.contract(address=tx_receipt.contractAddress, abi=abi)
+
+# Run dynamic vulnerability detection
+def detect_vulnerabilities():
+    try:
+        # Simulate transactions
+        tx = deployed_contract.functions.someFunction().transact({"from": account})
+        web3.eth.wait_for_transaction_receipt(tx)
+        print("Transaction successful, monitoring state changes...")
+        
+        # Check gas usage
+        gas_used = web3.eth.get_transaction_receipt(tx)["gasUsed"]
+        if gas_used > 500000:
+            print("Warning: High gas usage detected.")
+        
+        # Monitor reentrancy
+        if deployed_contract.functions.getBalance().call() == 0:
+            print("Potential Reentrancy Attack Detected!")
+        
+        # Event-based anomaly detection
+        events = deployed_contract.events.SomeEvent().get_logs()
+        for event in events:
+            print("Unusual event detected:", event)
+        
+    except Exception as e:
+        print("Error during vulnerability analysis:", str(e))
+
+# Run analysis
+detect_vulnerabilities()

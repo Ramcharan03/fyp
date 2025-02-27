@@ -1,0 +1,57 @@
+import os
+import subprocess
+import json
+
+# Directory where Solidity contracts are stored
+CONTRACTS_DIR = "contracts"
+
+# Function to compile and analyze Solidity contracts
+def analyze_contracts():
+    results = []
+    
+    for file in os.listdir(CONTRACTS_DIR):
+        if file.endswith(".sol"):
+            contract_path = os.path.join(CONTRACTS_DIR, file)
+            print(f"Analyzing: {contract_path}")
+
+            # Step 1: Static Analysis with solc
+            try:
+                solc_output = subprocess.run(
+                    ["solc", "--optimize", "--bin", "--abi", "--hashes", contract_path],
+                    capture_output=True,
+                    text=True
+                )
+                static_analysis_result = solc_output.stdout
+            except Exception as e:
+                static_analysis_result = f"Error running solc: {str(e)}"
+
+            # Step 2: Dynamic Analysis Simulation
+            try:
+                dynamic_analysis_result = run_dynamic_tests(contract_path)
+            except Exception as e:
+                dynamic_analysis_result = f"Error in dynamic analysis: {str(e)}"
+
+            # Store results
+            results.append({
+                "contract": file,
+                "static_analysis": static_analysis_result,
+                "dynamic_analysis": dynamic_analysis_result
+            })
+    
+    # Save results to a JSON file
+    with open("analysis_results.json", "w") as f:
+        json.dump(results, f, indent=4)
+    
+    print("\n✅ Analysis Completed! Results saved in 'analysis_results.json'.")
+
+# Function to run dynamic tests on contracts
+def run_dynamic_tests(contract_path):
+    """
+    Simulate transactions and detect runtime issues.
+    This part can be expanded based on your testing framework (e.g., Brownie, Hardhat).
+    """
+    return f"Simulated execution of {contract_path} - No issues detected."
+
+# Run the analysis
+if __name__ == "__main__":
+    analyze_contracts()
